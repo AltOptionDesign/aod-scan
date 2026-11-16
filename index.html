@@ -4,13 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<title>AOD · Opening wall…</title>
+<title>AOD · Open wall</title>
 <!--
   AOD scan router.
   Every piece label's QR code points HERE, not straight at Airtable:
       https://<this page>/?r=/recXXXXXXXXXXXXXX
-  This page reads the wall's record ID and sends the phone to the Airtable link
-  that works on that phone:
+  This page reads the wall's record ID and shows a button to the Airtable link
+  that works on that phone. It waits for a TAP on purpose: a phone only hands a link
+  to the Airtable APP when a person taps it; an automatic jump stays in the browser
+  (which asks for a magic-link sign-in). Android's button names the app directly.
       iPhone / iPad / desktop -> Scan · Walls list page + record   (detail page loads blank on iPhone)
       Android                 -> Scope · Scan record page + record (list page drops the record on Android)
   If Airtable changes how its app handles links, change the two lines below.
@@ -33,29 +35,33 @@
   a.main { background: var(--accent); color: #fff; }
   a.alt { color: var(--ink); border: 1px solid var(--mute); }
   .hide { display: none; }
+  p.small { font-size: 13px; margin: 18px 0 0; }
 </style>
 </head>
 <body>
 <div class="card">
-  <div class="dot" id="dot"></div>
-  <h1 id="title">Opening this wall…</h1>
-  <p id="msg">If nothing happens, tap the button.</p>
-  <a class="btn main hide" id="go" href="#">Open wall</a>
+  <h1 id="title">AOD · Wall pieces</h1>
+  <p id="msg">Tap to open this wall in the Airtable app.</p>
+  <a class="btn main hide" id="go" href="#">Open in Airtable</a>
+  <a class="btn alt hide" id="web" href="#">Open in browser instead</a>
   <a class="btn alt hide" id="other" href="#">Blank page? Try the other link</a>
+  <a class="btn alt hide" id="contractor" href="#">Contractor? Open the AOD portal</a>
+  <p class="small">No Airtable app? Install it once and sign in. The browser works too, but asks you to sign in.</p>
 </div>
 <script>
   // ---- The only lines to change if Airtable moves things ----
   var BASE      = 'https://airtable.com/appUXnAIsPihKVdpI';
   var LIST_PAGE = 'pagOwX3n6uLgf915g'; // MOBILE > Scan · Walls (works on iPhone)
   var REC_PAGE  = 'pagDDDyM438ZRa79v'; // Scope · Scan record page (works on Android)
+  var PORTAL    = ''; // contractor portal (Cloudflare Worker), e.g. 'https://aod-portal.xxxx.workers.dev' — blank hides the button
   // -------------------------------------------------------------
 
   var raw = location.search + ' ' + location.hash + ' ' + location.pathname;
   var m = raw.match(/rec[A-Za-z0-9]{14}/);
-  var go = document.getElementById('go'), other = document.getElementById('other');
+  var ANDROID_APP = 'com.formagrid.airtable'; // Airtable's Android app id
+  var go = document.getElementById('go'), web = document.getElementById('web'), other = document.getElementById('other');
 
   if (!m) {
-    document.getElementById('dot').className = 'hide';
     document.getElementById('title').textContent = 'No wall on this label';
     document.getElementById('msg').textContent = 'This QR code has no wall ID in it. Reprint the label from the Label Printer.';
   } else {
@@ -63,9 +69,14 @@
     var android = /Android/i.test(navigator.userAgent);
     var best  = BASE + '/' + (android ? REC_PAGE : LIST_PAGE) + '/' + rec;
     var spare = BASE + '/' + (android ? LIST_PAGE : REC_PAGE) + '/' + rec;
-    go.href = best; other.href = spare;
-    go.className = 'btn main'; other.className = 'btn alt';
-    location.replace(best);
+    // Android: an intent link opens the Airtable app; if it isn't installed, Chrome falls back to the web link.
+    go.href = android
+      ? 'intent://' + best.replace(/^https:\/\//, '') + '#Intent;scheme=https;package=' + ANDROID_APP +
+        ';S.browser_fallback_url=' + encodeURIComponent(best) + ';end'
+      : best; // iPhone: tapping an airtable.com link opens the app when it is installed
+    web.href = best; other.href = spare;
+    go.className = 'btn main'; web.className = 'btn alt'; other.className = 'btn alt';
+    if (PORTAL) { var c = document.getElementById('contractor'); c.href = PORTAL.replace(/\/+$/, '') + '/w/' + rec; c.className = 'btn alt'; }
   }
 </script>
 </body>
